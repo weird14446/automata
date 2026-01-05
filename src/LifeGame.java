@@ -3,6 +3,7 @@ public class LifeGame {
     int unit = 0, gen = 0;
 
     public LifeGame(int row, int col) {
+        if (row <= 0 || col <= 0) throw new IllegalArgumentException("Dimensions must be positive");
         board = new char[row][col];
         for (int i = 0; i < row; i++)
             for (int j = 0; j < col; j++)
@@ -10,14 +11,30 @@ public class LifeGame {
     }
 
     public LifeGame(char[][] arr) {
-        board = new char[arr.length][arr[0].length];
-        for (int i = 0; i < arr.length; i++)
-            System.arraycopy(arr[i], 0, board[i], 0, arr[0].length);
+        if (arr == null || arr.length == 0) throw new IllegalArgumentException("Input array is empty");
+        
+        int rows = arr.length;
+        int cols = arr[0].length;
+        board = new char[rows][cols];
+
+        for (int i = 0; i < rows; i++) {
+            if (arr[i] == null) throw new IllegalArgumentException("Row " + i + " is null");
+            // Defensive copying and validation for jagged arrays
+            int lengthToCopy = Math.min(arr[i].length, cols);
+            System.arraycopy(arr[i], 0, board[i], 0, lengthToCopy);
+            
+            // Fill remaining if row was shorter
+            for (int k = lengthToCopy; k < cols; k++) {
+                board[i][k] = ' ';
+            }
+        }
         numberOfUnit();
     }
 
     public void set(int i, int j, char val) {
-        board[i][j] = val;
+        if (i >= 0 && i < board.length && j >= 0 && j < board[0].length) {
+            board[i][j] = val;
+        }
     }
 
     public void nextGeneration() {
@@ -26,20 +43,25 @@ public class LifeGame {
         for (int i = 0; i < nextBoard.length; i++)
             for (int j = 0; j < nextBoard[0].length; j++)
                 nextBoard[i][j] = ' ';
+                
         int[] dx = {1, 1, -1, -1, -1, 0, 1, 0};
         int[] dy = {-1, 1, -1, 1, 0, -1, 0, 1};
-        int cnt = 0;
+        
         for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[0].length; j++) {
+                int cnt = 0;
                 for (int k = 0; k < dx.length; k++) {
-                    if (!(0 <= i + dy[k] && i + dy[k] < board.length
-                            && 0 <= j + dx[k] && j + dx[k] < board[0].length)) continue;
-                    else if (board[i + dy[k]][j + dx[k]] == '@') cnt++;
+                    int ni = i + dy[k];
+                    int nj = j + dx[k];
+                    
+                    if (ni >= 0 && ni < board.length && nj >= 0 && nj < board[0].length) {
+                        if (board[ni][nj] == '@') cnt++;
+                    }
                 }
+                
                 if (cnt == 3) nextBoard[i][j] = '@';
                 else if (cnt == 2) nextBoard[i][j] = board[i][j];
                 else nextBoard[i][j] = ' ';
-                cnt = 0;
             }
         }
         board = nextBoard;
@@ -62,8 +84,7 @@ public class LifeGame {
         for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[0].length; j++)
                 result.append(board[i][j]);
-            if (i == board.length - 1) break;
-            result.append("\n");
+            if (i < board.length - 1) result.append("\n");
         }
         result.append("\n").append("-".repeat(board[0].length));
         return result.toString();

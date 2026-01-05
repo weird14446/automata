@@ -1,131 +1,83 @@
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 
-public class BusyBeaver extends TuringMachine {
-    FileInputStream fileInputStream;
-    FileOutputStream fileOutputStream;
-    File file;
-    int num;
-    boolean isWrite; // true: write, false: don't write
+public class BusyBeaver extends TuringMachine implements AutoCloseable {
+    private FileOutputStream fileOutputStream;
+    private final int num;
+    private final boolean isWrite;
 
     public BusyBeaver(int n) {
-        super();
-        num = n;
-        file = new File(n + "-busyBeaver.txt");
-        isWrite = true;
-        try {
-            fileInputStream = new FileInputStream(file);
-            fileOutputStream = new FileOutputStream(file);
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
-        }
+        this(n, true);
     }
 
     public BusyBeaver(int n, boolean b) {
         super();
-        num = n;
-        file = new File(n + "-busyBeaver.txt");
-        isWrite = b;
-        try {
-            fileInputStream = new FileInputStream(file);
-            fileOutputStream = new FileOutputStream(file);
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
+        this.num = n;
+        this.isWrite = b;
+        
+        // Logical Fix: Only open file if writing is enabled. 
+        // Removed useless FileInputStream.
+        if (isWrite) {
+            File file = new File(n + "-busyBeaver.txt");
+            try {
+                this.fileOutputStream = new FileOutputStream(file);
+            } catch (FileNotFoundException e) {
+                throw new RuntimeException("Failed to create log file", e);
+            }
         }
     }
 
     @Override
-    public void run(String tape) {
-        this.tape = tape;
-        int i = 0;
-        String state = initialState;
-        String head = "";
+    protected void onStart(String state) {
+        if (isWrite) logState(state);
+        // Default console output is suppressed in BusyBeaver logic? 
+        // Original code seemed to mix them or only write to file.
+        // Assuming we want to suppress console if writing to file to avoid noise,
+        // or keep both. Original code: "try { write... } catch..." and no System.out.
+        // So we do NOT call super.onStart(state) if we want to replace it.
+    }
+
+    @Override
+    protected void onStep(String state) {
+        if (isWrite) logState(state);
+    }
+
+    @Override
+    protected void onFinish() {
         if (isWrite) {
             try {
-                fileOutputStream.write((tape+"\n").getBytes(StandardCharsets.UTF_8)); //System.out.println(this.tape);
-                fileOutputStream.write(("|"+state+"\n").getBytes(StandardCharsets.UTF_8)); //System.out.println("|" + state);
+                String result = "\nBB(" + num + ")=" + countChar('1') + "\n";
+                fileOutputStream.write(result.getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            while (!finalStates.contains(state)) {
-                for (Transition t : transitionFunction) {
-                    if (t.state1.equals(state) && t.symbol1 == this.tape.charAt(i)) {
-                        state = t.state2;
-                        StringBuilder sb = new StringBuilder(this.tape);
-                        sb.setCharAt(i, t.symbol2);
-                        this.tape = sb.toString();
-                        if (t.direction) {
-                            if (i == tape.length() - 1){
-                                i++;
-                                this.tape += blankSymbol;
-                            }
-                            else i++;
-                        }
-                        else {
-                            if (i == 0) {
-                                this.tape = blankSymbol + this.tape;
-                            }
-                            else i--;
-                        }
-                        if (finalStates.contains(state)) break;
-                        try {
-                            fileOutputStream.write((tape+"\n").getBytes(StandardCharsets.UTF_8)); //System.out.println(this.tape);
-                            head = "";
-                            for (int _i = 0; _i < i; _i++) head+=" ";
-                            fileOutputStream.write((head+"|"+state+"\n").getBytes(StandardCharsets.UTF_8)); //System.out.println(head + "|" + state);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                        break;
-                    }
-                }
-            }
-            try {
-                fileOutputStream.write(("\nBB(" + num + ")=" + String.valueOf(countChar('1'))+"\n").getBytes(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Failed to write result", e);
             }
         }
-        else {
-            while (!finalStates.contains(state)) {
-                for (Transition t : transitionFunction) {
-                    if (t.state1.equals(state) && t.symbol1 == this.tape.charAt(i)) {
-                        state = t.state2;
-                        StringBuilder sb = new StringBuilder(this.tape);
-                        sb.setCharAt(i, t.symbol2);
-                        this.tape = sb.toString();
-                        if (t.direction) {
-                            if (i == tape.length() - 1){
-                                i++;
-                                this.tape += blankSymbol;
-                            }
-                            else i++;
-                        }
-                        else {
-                            if (i == 0) {
-                                this.tape = blankSymbol + this.tape;
-                            }
-                            else i--;
-                        }
-                        if (finalStates.contains(state)) break;
-                        break;
-                    }
-                }
-            }
-            try {
-                fileOutputStream.write(("BB("+num+")="+countChar('1')).getBytes(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        // We can still print to console if desired
+        // super.onFinish(); 
+    }
+
+    private void logState(String state) {
+        try {
+            fileOutputStream.write((tape.toString() + "\n").getBytes(StandardCharsets.UTF_8));
+            
+            StringBuilder head = new StringBuilder();
+            for (int i = 0; i < headPosition; i++) head.append(" ");
+            head.append("|").append(state).append("\n");
+            
+            fileOutputStream.write(head.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write state", e);
         }
     }
 
+    @Override
     public void close() {
-        try {
-            fileOutputStream.close();
-            fileInputStream.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (fileOutputStream != null) {
+            try {
+                fileOutputStream.close();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to close stream", e);
+            }
         }
     }
 }
